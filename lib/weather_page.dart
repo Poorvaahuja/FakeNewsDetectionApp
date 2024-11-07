@@ -1,5 +1,7 @@
-import 'package:fakenewsdetect/weather_api_service.dart';
+import 'package:fakenewsdetect/consts.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:weather/weather.dart';
 
 class WeatherPage extends StatefulWidget {
   const WeatherPage({super.key});
@@ -8,71 +10,193 @@ class WeatherPage extends StatefulWidget {
   _WeatherPageState createState() => _WeatherPageState();
 }
 
-class _WeatherPageState extends State<WeatherPage> {
-  final WeatherApiService apiService = WeatherApiService();
-  final TextEditingController _cityController = TextEditingController(text: 'Delhi');
-  Map<String, dynamic> weatherData = {};
-  bool isLoading = false;
+class _WeatherPageState extends State<WeatherPage>{
+  final WeatherFactory _wf = WeatherFactory(OPENWEATHER_API_KEY);
 
-  Future<void> fetchWeatherData() async {
-    setState(() {
-      isLoading = true;
-    });
-    try {
-      final data = await apiService.fetchWeather(_cityController.text);
-      setState(() {
-        weatherData = data;
-      });
-    } catch (e) {
-      print("Error fetching weather: $e");
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to load weather data')));
-    } finally {
-      setState(() {
-        isLoading = false;
-      });
-    }
-  }
+  Weather? _weather;
 
   @override
-  void initState() {
+  void initState(){
     super.initState();
-    fetchWeatherData();
+    _wf.currentWeatherByCityName("Delhi").then((w) {
+      setState(() {
+        _weather = w;
+      });
+    });
   }
 
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context){
     return Scaffold(
-      appBar: AppBar(title: Text("WEATHER UPDATES")),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
+      body: _buildUI(),
+    );
+  }
+  Widget _buildUI(){
+    if(_weather == null){
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
+    }
+    return SizedBox(
+      width: MediaQuery.sizeOf(context).width,
+      height: MediaQuery.sizeOf(context).height,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.max,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          _locationHeader(),
+          SizedBox(
+            height: MediaQuery.sizeOf(context).height * 0.08,
+          ),
+          _dateTimeInfo(),
+          SizedBox(
+            height: MediaQuery.sizeOf(context).height * 0.05,
+          ),
+          _weatherIcon(),
+          SizedBox(
+            height: MediaQuery.sizeOf(context).height * 0.02,
+          ),
+          _currentTemp(),
+          SizedBox(
+            height: MediaQuery.sizeOf(context).height * 0.02,
+          ),
+          _extraInfo(),
+
+        ],
+      ),
+    );
+  }
+  Widget _locationHeader(){
+    return Text(_weather?.areaName ?? "",
+      style: const TextStyle(
+        fontSize: 20,
+        fontWeight: FontWeight.w500,
+      ),
+    );
+  }
+  Widget _dateTimeInfo(){
+    DateTime now = _weather!.date!;
+    return Column(
+      children: [
+        Text(DateFormat("h:mm a").format(now),
+          style: const TextStyle(
+            fontSize: 35,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.max,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            TextField(
-              controller: _cityController,
-              decoration: InputDecoration(
-                labelText: "Enter city name",
-                border: OutlineInputBorder(),
+            Text(
+              DateFormat("EEEE").format(now),
+              style: const TextStyle(
+                fontWeight: FontWeight.w700
               ),
             ),
-            SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: fetchWeatherData,
-              child: Text("Get Weather"),
+            Text(
+              "  ${DateFormat("d/m/y").format(now)}",
+              style: const TextStyle(
+                fontWeight: FontWeight.w400,
+              ),
             ),
-            SizedBox(height: 20),
-            isLoading
-                ? CircularProgressIndicator()
-                : weatherData.isNotEmpty
-                    ? Column(
-                        children: [
-                          Text("City: ${weatherData['city_name'] ?? 'N/A'}", style: TextStyle(fontSize: 22)),
-                          Text("Temperature: ${weatherData['temp'] ?? 'N/A'}°C", style: TextStyle(fontSize: 18)),
-                          Text("Description: ${weatherData['weather_description'] ?? 'N/A'}", style: TextStyle(fontSize: 18)),
-                        ],
-                      )
-                    : Text("Enter a city name to get weather updates"),
           ],
         ),
+      ],
+    );
+  }
+  Widget _weatherIcon(){
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Container(
+          height: MediaQuery.sizeOf(context).height * 0.2,
+          decoration: BoxDecoration(
+            image: DecorationImage(
+              image: NetworkImage(
+                "http://openweathermap.org/img/wn/${_weather?.weatherIcon}@4x.png"
+              )
+            ),
+          ),
+        ),
+        Text(_weather?.weatherDescription ?? "",
+          style: const TextStyle(
+            color: Colors.black,
+            fontSize: 20,
+          ),
+        ),
+      ],
+    );
+  }
+  Widget _currentTemp(){
+    return Text("${_weather?.temperature?.celsius?.toStringAsFixed(0)}° C",
+      style: const TextStyle(
+        color: Colors.black,
+        fontSize: 90,
+        fontWeight: FontWeight.w500,
+      ),
+    );
+  }
+  Widget _extraInfo() {
+    return Container(
+      height: MediaQuery.sizeOf(context).height * 0.15,
+      width: MediaQuery.sizeOf(context).width * 0.8,
+      decoration: BoxDecoration(
+        color: Colors.deepPurpleAccent,
+        borderRadius: BorderRadius.circular(20,),
+      ),
+      padding: const EdgeInsets.all(
+        8.0,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.max,
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.max,
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text("Max: ${_weather?.tempMax?.celsius?.toStringAsFixed(0)}° C",
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                ),
+              ),
+              Text("Min: ${_weather?.tempMin?.celsius?.toStringAsFixed(0)}° C",
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                ),
+              ),
+            ],
+          ),
+          Row(
+            mainAxisSize: MainAxisSize.max,
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text("Wind: ${_weather?.windSpeed?.toStringAsFixed(0)}m/s",
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                ),
+              ),
+              Text("Humidity: ${_weather?.humidity?.toStringAsFixed(0)}%",
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                ),
+              ),
+            ],
+          )
+        ],
       ),
     );
   }
